@@ -1,0 +1,234 @@
+import os
+import telebot
+import re
+import json
+
+from dotenv import load_dotenv
+from PIL import Image, ImageDraw, ImageFont
+
+
+
+while True:
+    try:
+        #Path to file with values/variables
+        values_file_path = "Values.json"
+
+        variables = {
+            'voeding': 0,
+            'vervoer': 0,
+            'verblijf': 0,
+            'vermaak': 0,
+            'overig': 0,
+            'totaal': 0
+        }
+
+        # Load the file with telegram bot token
+        load_dotenv("Token.env")
+
+        # Bot token from separate file
+        BOT_TOKEN = os.getenv('BOT_TOKEN')
+
+        bot = telebot.TeleBot(BOT_TOKEN)
+
+        # Settings for the picture
+        base_settings = {
+            'photo_path': '',  # This will be different depending on messages so no base setting
+            'output_path': "output.jpg",
+            'positions': {
+                'voeding': (528, 939),
+                'vervoer': (528, 1181),
+                'verblijf': (528, 1424),
+                'vermaak': (528, 1665),
+                'overig': (528, 1906),
+                'totaal': (100, 70),
+                'country': (42, 185)
+            },
+            'font': "Arimo-Regular_1.ttf",
+            'font_size': 90,
+            'text_color': (255, 255, 255)
+        }
+
+
+        picture_settings = {
+            'jungle': base_settings.copy(),
+            'city': base_settings.copy(),
+            'beach': base_settings.copy(),
+            'mountains': base_settings.copy(),
+            'countryside': base_settings.copy(),
+            'plane': base_settings.copy(),
+            'village': base_settings.copy(),
+            'daily': base_settings.copy(),
+            'lake': base_settings.copy(),
+            'temple': base_settings.copy(),
+            'wall': base_settings.copy(),
+            'hills': base_settings.copy()
+        }
+
+        # Path for different pictures depending on the "word"
+        picture_settings['jungle']['photo_path'] = "DC JUNGLE.png"
+        picture_settings['city']['photo_path'] = "DC CITY.png"
+        picture_settings['beach']['photo_path'] = "DC BEACH.png"
+        picture_settings['mountains']['photo_path'] = "DC MOUNTAINS.png"
+        picture_settings['countryside']['photo_path'] = "DC COUNTRYSIDE.png"
+        picture_settings['plane']['photo_path'] = "DC PLANE.png"
+        picture_settings['village']['photo_path'] = "DC VILLAGE.png"
+        picture_settings['daily']['photo_path'] = "DailyPhoto.png"
+        picture_settings['lake']['photo_path'] = "DC LAKE.png"
+        picture_settings['hills']['photo_path'] = "DC HILLS.png"
+        picture_settings['wall']['photo_path'] = "DC WALL.png"
+        picture_settings['temple']['photo_path'] = "DC TEMPLE.png"
+
+
+        def load_values():
+            """
+            Load the values from the file or create a new dictionary if the file doesn't exist.
+            """
+            if os.path.isfile(values_file_path):
+                with open(values_file_path, "r") as file:
+                    return json.load(file)
+            else:
+                return {
+                    'voeding': 0,
+                    'vervoer': 0,
+                    'verblijf': 0,
+                    'vermaak': 0,
+                    'overig': 0,
+                    'totaal': 0
+                }
+
+
+        def save_values(values):
+            """
+            Save the values to the file.
+            """
+            with open(values_file_path, "w") as file:
+                json.dump(values, file)
+
+
+        def reset_values():
+            """
+            Reset the values to zero.
+            """
+            for key in variables:
+                    variables[key] = 0
+
+            save_values(variables)
+            return variables
+
+
+        variables = load_values()
+
+        @bot.message_handler(func=lambda msg: msg.text.startswith('!'))
+        def ignore_messages_with_prefix(message):
+            pass
+
+        @bot.message_handler(func=lambda msg: True)
+        def extract_variables(message):
+            if message.text.lower() in picture_settings:
+                # Set current picture settings based on the received word
+                current_picture = message.text.lower()
+                picture_setting = picture_settings[current_picture]
+
+                # Draw variables on the image
+                draw_variables_on_image(picture_setting)
+
+                # Send the picture
+                send_picture(message, current_picture)
+
+                # Reset variables to zero after sending the picture
+                reset_values()
+
+                return
+
+            pattern = r"(Reset)\s+(\w+)"
+            reset_matches = re.findall(pattern, message.text)
+
+            # Check if the message is a reset command
+            if reset_matches:
+                for reset_match in reset_matches:
+                    reset_variable = reset_match[1].lower()
+                    if reset_variable in variables:
+                        variables[reset_variable] = 0
+
+                bot.reply_to(message, "Variables reset successfully.")
+                return
+
+            pattern = r"(\w+)\s*(?: )?([\d,.]+)"
+            matches = re.findall(pattern, message.text)
+
+            for match in matches:
+                variable = match[0].lower()
+                value = match[1].replace(",", ".")  # Replaces , to a .
+
+                if variable in variables:
+                    variables[variable] += float(value)
+                    response = f"Added {value} to {variable}!"
+                    bot.reply_to(message, response)
+
+            # Calculate the total value
+            variables['totaal'] = sum(variables[key] for key in variables if key != 'totaal')
+
+            save_values(variables)
+
+            # Check if the message is a tussenstand command
+            if message.text.lower() == "tussenstand":
+                response = "Current values:\n"
+                for variable, value in variables.items():
+                    response += f"{variable}: {value:.2f}  \n"
+
+                bot.reply_to(message, response)
+                return
+
+
+        def draw_variables_on_image(picture_setting):
+            image = Image.open(picture_setting['photo_path']).convert("RGBA")
+            draw = ImageDraw.Draw(image)
+            font = ImageFont.truetype(picture_setting['font'], size=picture_setting['font_size'])
+            text_color = picture_setting['text_color']
+            positions = picture_setting['positions']
+
+            for variable, position in positions.items():
+                if variable != 'totaal' and variable in variables:
+                    value = variables[variable]
+                    draw.text(position, f" {value:.2f}", font=font, fill=text_color)
+
+            # Load the totaal image
+            totaal_image_path = "EMPTY.png"
+            totaal_image = Image.open(totaal_image_path).convert("RGBA")
+
+            # Draw the 'totaal' variable on the totaal image
+            totaal_position = positions['totaal']
+            totaal_value = variables['totaal']
+            draw_totaal = ImageDraw.Draw(totaal_image)
+            draw_totaal.text(totaal_position, f" {totaal_value:.2f}", font=font, fill=text_color)
+
+            # Rotate the totaal image
+            rotated_totaal_image = totaal_image.rotate(-12)  # Adjust the rotation angle as needed
+
+            # Paste the rotated totaal image onto the main image
+            image.paste(rotated_totaal_image, (765, 1980), mask=rotated_totaal_image)
+
+            positions = picture_setting['positions']
+
+            # Save the modified main image as a PNG file
+            output_path = picture_setting['output_path']
+            image.save(output_path, format='PNG')
+
+
+        def send_picture(message, current_picture):
+            caption = "Beach,City,Jungle,Plane,Countryside,Mountains,Lake,Village,Hills,Wall,Temple,Daily!"  # Caption for the photo
+
+            picture_path = picture_settings[current_picture]['output_path']
+            with open(picture_path, 'rb') as photo:
+                bot.send_photo(message.chat.id, photo, caption=caption)
+
+        variables['totaal'] = sum(variables[key] for key in variables if key != 'totaal')
+
+        save_values(variables)
+
+        bot.polling()
+
+    except Exception as e:
+        # Print the error message
+        print(f"An error occurred: {str(e)}")
+        print("Restarting...")
