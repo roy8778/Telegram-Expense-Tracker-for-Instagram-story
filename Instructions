@@ -1,0 +1,30 @@
+Get a telegram api token and put it in the a file named: "Token.env"
+
+Make a Telegram chat with your bot.
+
+
+Send messages in the form: <Word> <amount> <Description> 
+
+the "word" can be:
+voeding = food
+vervoer = transportation
+Vermaak = entertainment
+Verblijf = accomodation
+overig = Everything else
+
+every time you send a message in this form it will store the value with the word you send.
+if you want to see the current values that are attached to the "word" you can send a message "Tussenstand"
+
+if you want to reset the values of a "word"
+you can send a message "Reset <word>"
+
+At the end of the day you can send the word "daily" it will reply with a picture (instagram sotry size) with the values on it.
+the only thing you have to add is the current date to post it on instagram.
+
+on Github i only uploaded the png for "Daily"
+i made another python script that will use any picture you send and convert it to instagram story size and add a overlay to make a nice overview of your expenses.
+
+
+
+
+
